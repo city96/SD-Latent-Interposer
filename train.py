@@ -46,9 +46,10 @@ def sample_decode(latent, filename, version):
 	out = Image.fromarray(out)
 	out.save(filename)
 
-if not os.path.isdir("models"): os.mkdir("models")
-
 if __name__ == "__main__":
+	if not os.path.isdir("models"): os.mkdir("models")
+	log = open(f"models/{latent_src}-to-{latent_dst}_interposer.csv", "w")
+
 	print("Loading latents from disk")
 	latents = []
 	for i in tqdm(os.listdir("images")):
@@ -79,7 +80,9 @@ if __name__ == "__main__":
 		optimizer.step()
 
 		# print loss
-		if t%1000 == 0: tqdm.write(f"{t} - {loss.data.item():.2f}")
+		if t%1000 == 0:
+			tqdm.write(f"{t} - {loss.data.item():.2f}")
+			log.write(f"{t},{loss.data.item():.2f}\n")
 
 		# sample/save
 		if t%save_every_n == 0:
@@ -91,3 +94,4 @@ if __name__ == "__main__":
 	output_name = f"./models/{latent_src}-to-{latent_dst}_interposer_e{target_steps/1000}k"
 	sample_decode(out, f"{output_name}.png", "v1")
 	save_file(model.state_dict(), f"{output_name}.safetensors")
+	log.close()
