@@ -46,7 +46,7 @@ class LatentInterposer:
 
 	def convert(self, samples, latent_src, latent_dst):
 		if latent_src == latent_dst:
-			return samples
+			return (samples,)
 		model = Interposer()
 		weights = str(hf_hub_download(
 			repo_id="city96/SD-Latent-Interposer",
