@@ -4,7 +4,8 @@ latent_*/
 vae/
 models/
 test.py
-test.png
+*.png
+*.zip
 *.npy
 *.ckpt
 *.safetensors
