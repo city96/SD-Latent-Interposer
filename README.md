@@ -11,11 +11,11 @@ If you need the model weights for something else, they are [hosted on HF](https:
 ## Usage
 See the image below for an example on how to use it. xl=>v1 conversion is almost flawless, **v1=>xl seems to produce artifacts.**
 
-![LATENT_INTERPOSER_V3_TEST](https://github.com/city96/SD-Latent-Interposer/assets/125218114/4e15f7b6-e853-417d-ab58-205c1c99e507)
+![LATENT_INTERPOSER_V3 1_TEST](https://github.com/city96/SD-Latent-Interposer/assets/125218114/849574b4-2565-4090-85d3-ae63ab425ee2)
 
 Without the interposer, the two latent spaces are incompatible:
 
-![LATENT_INTERPOSER_V3 1](https://github.com/city96/SD-Latent-Interposer/assets/125218114/24e2864e-d20f-4977-b218-dff0bf0fdc9f)
+![LATENT_INTERPOSER_V3 1](https://github.com/city96/SD-Latent-Interposer/assets/125218114/13e2c01f-580e-4ecb-af1f-b6b21699127b)
 
 ## Training
 The training script should spit out a working model, nn layout is probably not optimal but I'm pretty short on VRAM to trial and error a better layout. PRs welcome.
@@ -28,6 +28,6 @@ I also trained a v1-to-v2 mode, which
 
 ### v1.0 Training loss/progress
 
-![loss](https://github.com/city96/SD-Latent-Interposer/assets/125218114/89e996b9-3baa-4027-930c-38dc6ec5ec24)
+![loss](https://github.com/city96/SD-Latent-Interposer/assets/125218114/f92c399b-a823-4521-b09b-8bdc3795f1ea)
 
-![xl-to-v1_interposer](https://github.com/city96/SD-Latent-Interposer/assets/125218114/d94ee64b-5417-40f4-a582-bcd2d0ac4365)
+![xl-to-v1_interposer](https://github.com/city96/SD-Latent-Interposer/assets/125218114/0d963bc5-570f-4ebe-95db-16e261f05e48)
