@@ -1,3 +1,16 @@
+raw/
+images/
+latent_*/
+vae/
+models/
+test.py
+test.png
+*.npy
+*.ckpt
+*.safetensors
+
+# default github .gitignore follows
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
