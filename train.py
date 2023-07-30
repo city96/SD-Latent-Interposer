@@ -20,11 +20,9 @@ latent_dst = "xl"
 class Latent:
 	def __init__(self, md5, lat_src, lat_dst, dev):
 		if lat_src == "v1": src = os.path.join("latent_v1", f"{md5}.npy")
-		if lat_src == "v2": src = os.path.join("latent_v2", f"{md5}.npy")
 		if lat_src == "xl": src = os.path.join("latent_xl", f"{md5}.npy")
 
 		if lat_dst == "v1": dst = os.path.join("latent_v1", f"{md5}.npy")
-		if lat_dst == "v2": dst = os.path.join("latent_v2", f"{md5}.npy")
 		if lat_dst == "xl": dst = os.path.join("latent_xl", f"{md5}.npy")
 
 		self.src = torch.from_numpy(np.load(src)).to(dev)

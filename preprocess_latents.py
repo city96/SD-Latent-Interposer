@@ -47,5 +47,5 @@ def run_xl(file_path=None):
 if __name__ == "__main__":
 	# run_v1("./vae/ft-mse-840000.ckpt") # probably doesn't reflect internal SD latent
 	run_v1()
-	run_v2()
+	# run_v2() # v2 and v1 share a latent space
 	run_xl("./vae/sdxl_v0.9.safetensors") # 1.0 has artifacts 
