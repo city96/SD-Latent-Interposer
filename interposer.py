@@ -6,7 +6,7 @@ class Interposer(nn.Module):
 	def __init__(self):
 		super().__init__()
 		
-		# it looks like a spaceship if you squint :P
+		# it looks like a spaceship if you squint :D
 		module_list = [
 		#############)
 		#############)
