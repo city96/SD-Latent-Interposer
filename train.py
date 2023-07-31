@@ -2,20 +2,26 @@ import os
 import torch
 import torch.nn as nn
 import numpy as np
+import argparse
 import random
 from PIL import Image
 from tqdm import tqdm
-from safetensors.torch import save_file
+from safetensors.torch import save_file, load_file
 
 from interposer import Interposer
 from vae import get_vae
 
-# options
-target_dev = "cuda"
-target_steps = 500000
-save_every_n = 50000
-latent_src = "v1"
-latent_dst = "xl"
+def parse_args():
+	parser = argparse.ArgumentParser(description="Train latent interposer model")
+	parser.add_argument("--steps", type=int, default=500000, help="No. of training steps")
+	parser.add_argument("-n", "--save_every_n", type=int, dest="save", default=50000, help="Save model/sample periodically")
+	parser.add_argument('--src', choices=["v1","xl"], required=True, help="Source latent format")
+	parser.add_argument('--dst', choices=["v1","xl"], required=True, help="Destination latent format")
+	parser.add_argument('--resume', help="Checkpoint to resume from")
+	args = parser.parse_args()
+	if args.src == args.dst:
+		parser.error("--src and --dst can't be the same")
+	return args
 
 class Latent:
 	def __init__(self, md5, lat_src, lat_dst, dev):
@@ -27,6 +33,14 @@ class Latent:
 
 		self.src = torch.from_numpy(np.load(src)).to(dev)
 		self.dst = torch.from_numpy(np.load(dst)).to(dev)
+
+def load_latents(src, dst, dev):
+	print("Loading latents from disk")
+	latents = []
+	for i in tqdm(os.listdir("images")):
+		md5 = os.path.splitext(i)[0]
+		latents.append(Latent(md5, src, dst, dev))
+	return latents
 
 vae = None
 def sample_decode(latent, filename, version):
@@ -47,14 +61,17 @@ def sample_decode(latent, filename, version):
 	out.save(filename)
 
 if __name__ == "__main__":
+	args = parse_args()
+	target_dev = "cuda"
+	target_steps = args.steps
+	save_every_n = args.save
+	latent_src = args.src
+	latent_dst = args.dst
+
+	latents = load_latents(latent_src, latent_dst, target_dev)
+
 	if not os.path.isdir("models"): os.mkdir("models")
 	log = open(f"models/{latent_src}-to-{latent_dst}_interposer.csv", "w")
-
-	print("Loading latents from disk")
-	latents = []
-	for i in tqdm(os.listdir("images")):
-		md5 = os.path.splitext(i)[0]
-		latents.append(Latent(md5, latent_src, latent_dst, target_dev))
 
 	if os.path.isfile(f"test_{latent_src}.npy"):
 		sample_latent = torch.from_numpy(np.load(f"test_{latent_src}.npy")).to(target_dev)
@@ -62,6 +79,8 @@ if __name__ == "__main__":
 		sample_latent = random.choice(latents).src
 
 	model = Interposer()
+	if args.resume:
+		model.load_state_dict(load_file(args.resume))
 	model.to(target_dev)
 
 	criterion = torch.nn.MSELoss(size_average=False)
