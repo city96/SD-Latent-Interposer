@@ -3,18 +3,23 @@ import math
 import matplotlib.pyplot as plt
 
 files = [f"models/{x}" for x in os.listdir("models") if x.endswith(".csv")]
-step = []
-data = {}
-for fp in files:
-	with open(fp) as f:
-		lines = f.readlines()
-	if not step:
-		step = [int(x.split(",")[0]) for x in lines]
+train_loss = {}
+eval_loss = {}
+	
+def process_lines(lines):
+	global train_loss
+	global eval_loss
 	name = fp.split("/")[1].split("_")[0]
-	data[name] = (
-		[int(x.split(",")[0]) for x in lines],
-		[math.log(float(x.split(",")[1])) for x in lines],
+	vals = [x.split(",") for x in lines]
+	train_loss[name] = (
+		[int(x[0]) for x in vals],
+		[math.log(float(x[1])) for x in vals],
 	)
+	if len(vals[0]) == 3:
+		eval_loss[name] = (
+			[int(x[0]) for x in vals],
+			[math.log(float(x[2])) for x in vals],
+		)
 
 # https://stackoverflow.com/a/49357445
 def smooth(scalars, weight):
@@ -26,9 +31,18 @@ def smooth(scalars, weight):
 		last = smoothed_val
 	return smoothed
 
-fig, ax = plt.subplots()
-ax.grid()
-for name, val in data.items():
-	ax.plot(val[0], smooth(val[1], 0.7), label=name)
-plt.legend(loc="upper right")
-plt.savefig('loss.png', dpi=300, bbox_inches='tight')
+def plot(data, fname):
+	fig, ax = plt.subplots()
+	ax.grid()
+	for name, val in data.items():
+		ax.plot(val[0], smooth(val[1], 0.9), label=name)
+	plt.legend(loc="upper right")
+	plt.savefig(fname, dpi=300, bbox_inches='tight')
+
+for fp in files:
+	with open(fp) as f:
+		lines = f.readlines()
+	process_lines(lines)
+
+plot(train_loss, "loss.png")
+plot(eval_loss, "loss-eval.png")
