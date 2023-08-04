@@ -77,10 +77,13 @@ if __name__ == "__main__":
 	if not os.path.isdir("models"): os.mkdir("models")
 	log = open(f"models/{latent_src}-to-{latent_dst}_interposer.csv", "w")
 
-	if os.path.isfile(f"test_{latent_src}.npy"):
-		sample_latent = torch.from_numpy(np.load(f"test_{latent_src}.npy")).to(target_dev)
+	if os.path.isfile(f"test_{latent_src}.npy") and os.path.isfile(f"test_{latent_dst}.npy"):
+		ss_latent = torch.from_numpy(np.load(f"test_{latent_src}.npy")).to(target_dev)
+		st_latent = torch.from_numpy(np.load(f"test_{latent_dst}.npy")).to(target_dev)
 	else:
-		sample_latent = random.choice(latents).src
+		sample_latent = random.choice(latents)
+		ss_latent = sample_latent.src.to(target_dev)
+		st_latent = sample_latent.dst.to(target_dev)
 
 	model = Interposer()
 	if args.resume:
@@ -107,13 +110,17 @@ if __name__ == "__main__":
 
 		# print loss
 		if step%1000 == 0:
-			tqdm.write(f"{step} - {loss.data.item()/args.bs:.2f}")
-			log.write(f"{step},{loss.data.item()/args.bs:.2f}\n")
+			# test loss
+			with torch.no_grad():
+				t_pred = model(ss_latent)
+				t_loss = criterion(t_pred, st_latent)
+			tqdm.write(f"{step} - {loss.data.item()/args.bs:.2f}|{t_loss.data.item()/args.bs:.2f}")
+			log.write(f"{step},{loss.data.item()/args.bs:.2f},{t_loss.data.item()/args.bs:.2f}\n")
 			log.flush()
 
 		# sample/save
 		if step%args.save == 0:
-			out = model(sample_latent)
+			out = model(ss_latent)
 			output_name = f"./models/{latent_src}-to-{latent_dst}_interposer_e{step/1000}k"
 			sample_decode(out, f"{output_name}.png", latent_dst)
 			save_file(model.state_dict(), f"{output_name}.safetensors")
