@@ -24,13 +24,23 @@ def process(fname, folder, resolution):
 		return
 	img = Image.open(src)
 	img = img.convert('RGB')
-	img = img.resize((resolution,resolution), Image.LANCZOS)
+	target = (resolution, resolution)
+	if min(img.height, img.width) < 256:
+		return
+
+	if img.width > img.height:
+		target = (int(img.width/img.height*resolution), resolution)
+	elif img.height > img.width:
+		target = (resolution, int(img.height/img.width*resolution))
+	img = img.resize(target, Image.LANCZOS)
+	img = img.crop([0,0,resolution,resolution])
 	img.save(out)
 
 def thread(queue, pbar, folder, resolution):
 	while not queue.empty():
 		fname = queue.get()
-		process(fname, folder, resolution)
+		try: process(fname, folder, resolution)
+		except: pass
 		queue.task_done()
 		pbar.update()
 
