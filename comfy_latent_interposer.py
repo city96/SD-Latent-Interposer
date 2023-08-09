@@ -9,7 +9,7 @@ class Interposer(nn.Module):
 		Basic NN layout, ported from:
 		https://github.com/city96/SD-Latent-Interposer/blob/main/interposer.py
 	"""
-	version = 1.0 # network revision
+	version = 1.1 # network revision
 	def __init__(self):
 		super().__init__()
 		module_list = [
