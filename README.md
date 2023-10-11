@@ -19,6 +19,11 @@ Without the interposer, the two latent spaces are incompatible:
 
 ![LATENT_INTERPOSER_V3 1](https://github.com/city96/SD-Latent-Interposer/assets/125218114/13e2c01f-580e-4ecb-af1f-b6b21699127b)
 
+### Local models
+The node pulls the required files from huggingface hub by default. You can create a `models` folder and place the modules there if you have a flaky connection or prefer to use it completely offline. The custom node will prefer local files over HF when available. The path should be: `ComfyUI/custom_nodes/SD-Latent-Interposer/models`
+
+Alternatively, just clone the entire HF repo to it: `git clone https://huggingface.co/city96/SD-Latent-Interposer custom_nodes/SD-Latent-Interposer/models`
+
 ## Training
 Most of the training/preprocessing code is a 1:1 mirror from my latent upscaler. The folder layout it expects is also the same.
 
