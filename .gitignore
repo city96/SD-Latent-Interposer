@@ -1,12 +1,15 @@
 raw/
 images/
-latent_*/
+latents/
+latents
 vae/
 models/
+other/
 test.py
 *.png
 *.zip
 *.npy
+*.pth
 *.ckpt
 *.safetensors
 

@@ -15,7 +15,7 @@ def process_lines(lines):
 		[int(x[0]) for x in vals],
 		[math.log(float(x[1])) for x in vals],
 	)
-	if len(vals[0]) == 3:
+	if len(vals[0]) >= 3:
 		eval_loss[name] = (
 			[int(x[0]) for x in vals],
 			[math.log(float(x[2])) for x in vals],
