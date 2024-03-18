@@ -1,45 +1,37 @@
-# Custom dataset to load encoded latents from disk.
-#  Files should contain latents as (1, C, H, W) or (C, H, W)
-#  Latents should be in their original format without scaling
-
-	######### Folder Layout #########
-	#  latents                      #
-	#   |- test_v1_768px.npy <=eval #
-	#   |- test_xl_768px.npy <=^    #
-	#   |- v1_768px <= ver/res      #
-	#   |   |- 000001.npy           #
-	#   |   |- 000002.npy           #
-	#   |   |   ...                 #
-	#   |   |- 000999.npy           #
-	#   |   \- 001000.npy           #
-	#   |- xl_768px                 #
-	#     ...                       #
-	#################################
-
 import os
 import torch
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
-DEFAULT_ROOT = "latents"
-ALLOWED_EXTS = [".npy"]
+class FileLatentDataset(Dataset):
+	def __init__(self, src_file, dst_file, device="cpu", dtype=torch.float16):
+		assert os.path.isfile(src_file), f"src bin missing! ({src_file})"
+		assert os.path.isfile(dst_file), f"dst bin missing! ({dst_file})"
+		self.src_data = torch.load(src_file).to(dtype).to(device)
+		self.dst_data = torch.load(dst_file).to(dtype).to(device)
+		assert self.src_data.shape[0] == self.dst_data.shape[0], "Data size mismatch!"
+
+	def __len__(self):
+		return self.src_data.shape[0]
+
+	def __getitem__(self, index):
+		return {
+			"src": self.src_data[index].float(),
+			"dst": self.dst_data[index].float(),
+		}
 
 class Shard:
-	"""
-	Shard to store groups of latents in
-	paths: List containing paths to latent encoded images
-	"""
 	def __init__(self, paths):
 		self.paths = paths
 		self.data = None
 
 	def exists(self):
-		return all([os.path.isfile(x) for x in self.paths])
+		return all([os.path.isfile(x) for x in self.paths.values()])
 
 	def get_data(self):
 		if self.data is not None: return self.data
-		return tuple([self.load_latent(x) for x in self.paths])
+		return {k:self.load_latent(v) for k,v in self.paths.items()}
 
 	def load_latent(self, path):
 		lat = torch.from_numpy(np.load(path))
@@ -52,29 +44,36 @@ class Shard:
 		self.data = self.get_data()
 
 class LatentDataset(Dataset):
-	def __init__(self, specs, res=768, root=DEFAULT_ROOT, preload=False):
-		"""
-		Main dataset that returns list of requested images as (C, H, W) latents
-		specs: List of latent versions in the other to return them in
-		res: Native resolution of images (before latent encoding)
-		root: Path to folder with sorted files
-		preload: Load all files into memory on initialization
-		"""
+	def __init__(self, src_root, dst_root, preload=True):
+		assert os.path.isdir(src_root), f"Source folder missing! ({src_root})"
+		assert os.path.isdir(dst_root), f"Destination folder missing! ({dst_root})"
+
 		print("Dataset: Parsing data from disk")
-		self.specs  = specs
-		self.res    = res
-		self.root   = root
+		fnames = list(
+			set(os.listdir(src_root)).intersection(
+			set(os.listdir(dst_root)))
+		)
+		assert len(fnames) > 0, "Source/destination have no overlapping files"
+
 		self.shards = []
-		for fname in tqdm(os.listdir(f"{root}/{specs[0]}_{res}px")):
+		for fname in tqdm(fnames):
+			src_path = os.path.join(src_root, fname)
+			dst_path = os.path.join(dst_root, fname)
 			name, ext = os.path.splitext(fname)
-			if ext not in ALLOWED_EXTS: continue
-			shard = Shard([f"{root}/{x}_{res}px/{name}{ext}" for x in specs])
+			if ext not in [".npy"]:
+				continue
+			shard = Shard({
+				"src": src_path,
+				"dst": dst_path,
+			})
 			if shard.exists():
 				self.shards.append(shard)
+		assert len(self.shards) > 0, "No valid files found."
 
 		if preload: # cache to RAM
 			print("Dataset: Preloading data to system RAM")
 			[x.preload() for x in tqdm(self.shards)]
+
 		print(f"Dataset: OK, {len(self)} items")
 
 	def __len__(self):
@@ -83,7 +82,14 @@ class LatentDataset(Dataset):
 	def __getitem__(self, index):
 		return self.shards[index].get_data()
 
-	def get_eval(self):
-		shard = Shard([f"{self.root}/test_{x}_{self.res}px.npy" for x in self.specs])
-		data = shard.get_data() if shard.exists() else self[0]
-		return tuple([x.unsqueeze(0).to(torch.float32) for x in data])
+def load_evals(evals):
+	data = {}
+	for name, paths in evals.items():
+		shard = Shard(paths)
+		assert shard.exists(), f"Eval data missing ({name})"
+		data[name] = {}
+		for k, v in shard.get_data().items():
+			if len(v.shape) == 3:
+				v = v.unsqueeze(0)
+			data[name][k] = v.float()
+	return data
