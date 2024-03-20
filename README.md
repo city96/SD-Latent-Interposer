@@ -64,6 +64,8 @@ The training code currently initializes two copies of the model, one in the targ
 All models were trained for 50000 steps with either batch size 128 (xl/v1) or 48 (cascade). 
 The training was done locally on an RTX 3080 and a Tesla V100S.
 
+![LATENT_INTERPOSER_V4_LOSS](https://github.com/city96/SD-Latent-Interposer/assets/125218114/3a0d8920-ed48-42f0-96c9-897263525efb)
+
 ### Older versions
 
 <details><summary>Interposer v3.1</summary>
