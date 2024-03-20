@@ -1,0 +1,40 @@
+steps: 20000
+batch:    48
+fconst:    0
+cosine: False
+resume: False
+device: "cuda"
+p_loss_weight: 1.0
+r_loss_weight: 1.4
+b_loss_weight: 1.0
+h_loss_weight: 0.0
+save_image:  100
+eval_model:   10
+
+model:
+  src: ca # Stable Cascade Stage A
+  dst: v1 # Stable Diffusion 1.x
+  rev: "v4.0-rc16"
+  args:
+    scale: 0.5
+    ch_in:   4
+    ch_out:  4
+    ch_mid: 64
+    blocks: 12
+
+optim:
+  lr: 5.0e-4
+  beta1: 0.5
+  beta2: 0.95
+
+dataset:
+  src: "./latents/ca_256px_combined.bin"
+  dst: "./latents/v1_256px_combined.bin"
+  preload: False
+  evals:
+    main:
+      src: "./latents/test_eru/test_ca_768px.npy"
+      dst: "./latents/test_eru/test_v1_768px.npy"
+    aux:
+      src: "./latents/test_bga/test_ca_768px.npy"
+      dst: "./latents/test_bga/test_v1_768px.npy"

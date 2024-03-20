@@ -1,197 +1,249 @@
 import os
+import yaml
 import torch
-import torch.nn as nn
-import numpy as np
 import argparse
-from PIL import Image
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 from safetensors.torch import save_file, load_file
-from torch.utils.data import DataLoader, Dataset
 
-from interposer import Interposer
-from vae import get_vae
+from interposer import InterposerModel
+from dataset import LatentDataset, FileLatentDataset, load_evals
+from vae import load_vae
 
 torch.backends.cudnn.benchmark = True
 torch.manual_seed(0)
 
 def parse_args():
 	parser = argparse.ArgumentParser(description="Train latent interposer model")
-	parser.add_argument("--steps", type=int, default=500000, help="No. of training steps")
-	parser.add_argument('--bs', type=int, default=4, help="Batch size")
-	parser.add_argument('--lr', default="1e-4", help="Learning rate")
-	parser.add_argument("-n", "--save_every_n", type=int, dest="save", default=50000, help="Save model/sample periodically")
-	parser.add_argument('--src', choices=["v1","xl"], required=True, help="Source latent format")
-	parser.add_argument('--dst', choices=["v1","xl"], required=True, help="Destination latent format")
-	parser.add_argument('--resume', help="Checkpoint to resume from")
-	parser.add_argument('--cosine', action=argparse.BooleanOptionalAction, help="Use cosine scheduler to taper off LR")
+	parser.add_argument("--config", help="Config for training")
 	args = parser.parse_args()
-	if args.src == args.dst:
-		parser.error("--src and --dst can't be the same")
-	try:
-		float(args.lr)
-	except:
-		parser.error("--lr must be a valid float eg. 0.001 or 1e-3")
-	return args
+	with open(args.config) as f:
+		conf = yaml.safe_load(f)
+	args.dataset = argparse.Namespace(**conf.pop("dataset"))
+	args.model = argparse.Namespace(**conf.pop("model"))
+	return argparse.Namespace(**vars(args), **conf)
 
-vae = None
-def sample_decode(latent, filename, version):
-	global vae
-	if not vae:
-		vae = get_vae(version, fp16=True)
-		vae.to("cuda")
+def eval_images(model, vae, evals):
+	preds = eval_model(model, evals, loss=False)
+	out = {}
+	for name, pred in preds.items():
+		images = vae.decode(pred).cpu().float()
+		# for image in images: # eval isn't batched
+		out[f"eval/{name}"] = images[0]
+	return out
 
-	latent = latent.half().to("cuda")
-	out = vae.decode(latent).sample
-	out = out.cpu().detach().numpy()
-	out = np.squeeze(out, 0)
-	out = out.transpose((1, 2, 0))
-	out = np.clip(out, -1.0, 1.0)
-	out = (out+1)/2 * 255
-	out = out.astype(np.uint8)
-	out = Image.fromarray(out)
-	out.save(filename)
-
-def get_eval_data(dataset, src_path, dst_path, target_dev):
-	if os.path.isfile(src_path) and os.path.isfile(dst_path):
-		src = LatentDataset.load_latent(None, src_path)
-		dst = LatentDataset.load_latent(None, dst_path)
+def eval_model(model, evals, loss=True):
+	model.eval()
+	preds = {}
+	losses = []
+	for name, data in evals.items():
+		src = data["src"].to(args.device)
+		dst = data["dst"].to(args.device)
+		with torch.no_grad():
+			pred = model(src)
+		if loss:
+			loss = torch.nn.functional.l1_loss(dst, pred)
+			losses.append(loss)
+		else:
+			preds[name] = pred
+	model.train()
+	if loss:
+		return (sum(losses) / len(losses)).data.item()
 	else:
-		src = dataset[0][0]
-		dst = dataset[0][1]
-	src = src.float().to(target_dev).unsqueeze(0)
-	dst = dst.float().to(target_dev).unsqueeze(0)
-	return(src, dst)
+		return preds
 
-def eval_model(step, model, criterion, scheduler, src, dst):
-	with torch.no_grad():
-		t_pred = model(src)
-		t_loss = criterion(t_pred, dst)
-	tqdm.write(f"{str(step):<10} {loss.data.item():.4e}|{t_loss.data.item():.4e} @ {float(scheduler.get_last_lr()[0]):.4e}")
-	log.write(f"{step},{loss.data.item()},{t_loss.data.item()},{float(scheduler.get_last_lr()[0])}\n")
-	log.flush()
-
-def save_model(step, model, optim, lat, src, dst):
-	with torch.no_grad():
-		out = model(lat)
-	output_name = f"./models/{src}-to-{dst}_interposer_e{round(step/1000)}k"
-	sample_decode(out, f"{output_name}.png", dst)
-	save_file(model.state_dict(), f"{output_name}.safetensors")
-	torch.save(optim.state_dict(), f"{output_name}.optim.pth")
-
-class LatentDataset(Dataset):
-	class Shard:
-		def __init__(self, root, fname, res, src, dst):
-			self.fname = fname
-			self.src_path = f"{root}/{src}_{res}px/{fname}.npy"
-			self.dst_path = f"{root}/{dst}_{res}px/{fname}.npy"
-
-	def __init__(self, res, src, dst, root="latents"):
-		print("Loading latents from disk")
-		self.latents = []
-		for i in tqdm(os.listdir(f"{root}/{src}_{res}px")):
-			fname, ext = os.path.splitext(i)
-			assert ext == ".npy"
-			s = self.Shard(root, fname, res, src, dst)
-			if os.path.isfile(s.src_path) and os.path.isfile(s.dst_path):
-				self.latents.append(s)
-
-	def __len__(self):
-		return len(self.latents)
-
-	def __getitem__(self, index):
-		s = self.latents[index]
-		src = self.load_latent(s.src_path)
-		dst = self.load_latent(s.dst_path)
-		return (src, dst)
-
-	def load_latent(self, path):
-		lat = torch.from_numpy(np.load(path))
-		if lat.shape[0] == 1:
-			lat = torch.squeeze(lat, 0)
-		assert not torch.isnan(torch.sum(lat.float()))
-		return lat
+# from pytorch GAN tutorial
+def weights_init(m):
+	classname = m.__class__.__name__
+	if classname.find('Conv') != -1:
+		torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+	elif classname.find('BatchNorm') != -1:
+		torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+		torch.nn.init.constant_(m.bias.data, 0)
 
 if __name__ == "__main__":
 	args = parse_args()
-	target_dev = "cuda"
-	resolution = 768
+	base_name = f"models/{args.model.src}-to-{args.model.dst}_interposer-{args.model.rev}"
 
-	dataset = LatentDataset(resolution, args.src, args.dst)
+	# dataset
+	if os.path.isfile(args.dataset.src):
+		dataset = FileLatentDataset(
+			args.dataset.src,
+			args.dataset.dst,
+		)
+	elif os.path.isdir(args.dataset.src):
+		dataset = LatentDataset(
+			args.dataset.src,
+			args.dataset.dst,
+			args.dataset.preload
+		)
+	else:
+		raise OSError(f"Missing dataset source {args.dataset.src}")
 	loader = DataLoader(
 		dataset,
-		batch_size=args.bs,
-		shuffle=True,
-		num_workers=0,
-		# num_workers=4,
+		batch_size  = args.batch,
+		shuffle     = True,
+		drop_last   = True,
+		pin_memory  = False,
+		num_workers = 0,
+		# num_workers = 6,
 		# persistent_workers=True,
 	)
-	eval_src, eval_dst = get_eval_data(
-		dataset,
-		f"latents/test_{args.src}_{resolution}px.npy",
-		f"latents/test_{args.dst}_{resolution}px.npy",
-		target_dev,
+
+	# evals
+	try:
+		evals = load_evals(args.dataset.evals)
+	except:
+		print(f"No evals, fallback to dataset.")
+		evals = dataset[0]
+
+	# defaults
+	crit = torch.nn.L1Loss()
+	optim_args = {
+		"lr": args.optim["lr"],
+		"betas": (args.optim["beta1"], args.optim["beta2"])
+	}
+
+	# model
+	model = InterposerModel(**args.model.args)
+	model.apply(weights_init)
+	model.to(args.device)
+	optim = torch.optim.AdamW(model.parameters(), **optim_args)
+
+	# aux model for reverse pass
+	model_back = InterposerModel(
+			ch_in  = args.model.args["ch_out"],
+			ch_mid = args.model.args["ch_mid"],
+			ch_out = args.model.args["ch_in"],
+			scale  = 1.0 / args.model.args["scale"],
+			blocks = args.model.args["blocks"],
 	)
+	model_back.apply(weights_init)
+	model_back.to(args.device)
+	optim_back = torch.optim.AdamW(model_back.parameters(), **optim_args)
 
-	os.makedirs("models", exist_ok=True)
-	log = open(f"models/{args.src}-to-{args.dst}_interposer.csv", "w")
-
-	model = Interposer()
-
-	criterion = torch.nn.L1Loss()
-	optimizer = torch.optim.AdamW(model.parameters(), lr=float(args.lr))
-	# import bitsandbytes as bnb
-	# optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=float(args.lr))
-
+	# scheduler
 	scheduler = None
 	if args.cosine:
-		print("Using CosineAnnealingLR")
 		scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-			optimizer, T_max = int(args.steps/args.bs),
-		)
-	else:
-		print("Using LinearLR")
-		scheduler = torch.optim.lr_scheduler.LinearLR(
-			optimizer,
-			start_factor = 0.1,
-			end_factor   = 1.0,
-			total_iters  = int(5000/args.bs),
+			optim,
+			T_max = (args.steps - args.fconst),
+			eta_min = 1e-8,
 		)
 
-	if args.resume:
-		model.load_state_dict(load_file(args.resume))
-		model.to(target_dev)
-		optimizer.load_state_dict(torch.load(
-			f"{os.path.splitext(args.resume)[0]}.optim.pth"
-		))
-	else:
-		model.to(target_dev)
+	# vae
+	vae = None
+	if args.save_image:
+		vae = load_vae(args.model.dst, device=args.device, dtype=torch.float16, dec_only=True)
 
-	progress = tqdm(total=args.steps)
-	while progress.n < args.steps:
-		for src, dst in loader:
-			src = src.to(target_dev)
-			dst = dst.to(target_dev)
+	# main loop
+	import time
+	from torch.utils.tensorboard import SummaryWriter
+	writer = SummaryWriter(log_dir=f"{base_name}_{int(time.time())}")
+
+	pbar = tqdm(total=args.steps)
+	while pbar.n < args.steps:
+		for batch in loader:
+			# get training data
+			src = batch.get("src").to(args.device)
+			dst = batch.get("dst").to(args.device)
+
+			### Train main model ###
+			optim.zero_grad()
+			logs = {}
+			loss = []
 			with torch.cuda.amp.autocast():
-				y_pred = model(src) # forward
-				loss = criterion(y_pred, dst) # loss
+				# pass first model
+				pred = model(src)
 
-			# backward
-			optimizer.zero_grad()
+				p_loss = crit(pred, dst) * args.p_loss_weight
+				loss.append(p_loss)
+				logs["p_loss"] = p_loss.data.item()
+
+				# pass second model
+				if args.r_loss_weight:
+					pred_back = model_back(pred)
+
+					r_loss = crit(pred_back, src) * args.r_loss_weight
+					loss.append(r_loss)
+					logs["r_loss"] = r_loss.data.item()
+
+			# loss logic
+			loss = sum(loss)
+			logs["main"] = loss.data.item()
 			loss.backward()
-			optimizer.step()
-			scheduler.step()
+			optim.step()
 
-			# eval/save
-			progress.update(args.bs)
-			if progress.n % (1000 + 1000%args.bs) == 0:
-				eval_model(progress.n, model, criterion, scheduler, eval_src, eval_dst)
-			if progress.n % (args.save + args.save%args.bs) == 0:
-				save_model(progress.n, model, optimizer, eval_src, args.src, args.dst)
-			if progress.n >= args.steps:
+			# logging
+			for name, value in logs.items():
+				writer.add_scalar(f"loss/{name}", value, pbar.n)
+
+			### Train backwards model ###
+			if args.r_loss_weight:
+				optim_back.zero_grad()
+				logs = {}
+				loss = []
+				with torch.cuda.amp.autocast():
+					# pass second model
+					pred = model_back(dst)
+
+					p_loss = crit(pred, src) * args.b_loss_weight
+					loss.append(p_loss)
+					logs["p_loss"] = p_loss.data.item()
+
+					# pass first model
+					if args.h_loss_weight: # better w/o this?
+						pred_back = model(pred)
+
+						r_loss = crit(pred_back, dst) * args.h_loss_weight
+						loss.append(r_loss)
+						logs["r_loss"] = r_loss.data.item()
+
+				# loss logic
+				loss = sum(loss)
+				logs["main"] = loss.data.item()
+				loss.backward()
+				optim_back.step()
+
+				# logging
+				for name, value in logs.items():
+					writer.add_scalar(f"loss_aux/{name}", value, pbar.n)
+
+			# run eval/save eval image
+			if args.eval_model and pbar.n % args.eval_model == 0:
+				writer.add_scalar("loss/eval_loss", eval_model(model, evals), pbar.n)
+			if args.save_image and pbar.n % args.save_image == 0:
+				for name, image in eval_images(model, vae, evals).items():
+					writer.add_image(name, image, pbar.n)
+
+			# scheduler logic main
+			if scheduler is not None and pbar.n >= args.fconst:
+				lr = scheduler.get_last_lr()[0]
+				scheduler.step()
+			else:
+				lr = args.optim["lr"]
+			writer.add_scalar("lr/model", lr, pbar.n)
+
+			# aux model doesn't have a scheduler
+			writer.add_scalar("lr/model_aux", args.optim["lr"], pbar.n)
+
+			# step
+			pbar.update()
+			if pbar.n > args.steps:
 				break
-	progress.close()
 
-	# save final output
-	eval_model(progress.n, model, criterion, scheduler, eval_src, eval_dst)
-	save_model(progress.n, model, optimizer, eval_src, args.src, args.dst)
-	log.close()
+			# hacky workaround when the colors are off.
+			# Save the last n versions and just pick the best one later.
+			# if pbar.n > (args.steps-2500) and pbar.n%500==0:
+				# from torchvision.utils import save_image
+				# save_file(model.state_dict(), f"{base_name}_{pbar.n:07}.safetensors")
+				# for name, image in eval_images(model, vae, evals).items():
+					# name = f"models/{name.replace('/', '_')}_{pbar.n:07}.png"
+					# save_image(image, name)
+
+	# final save/cleanup
+	pbar.close()
+	writer.close()
+
+	save_file(model.state_dict(), f"{base_name}.safetensors")
+	torch.save(optim.state_dict(), f"{base_name}.optim.pth")
