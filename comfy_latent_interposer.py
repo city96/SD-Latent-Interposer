@@ -13,6 +13,8 @@ config = {
 	"xl-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"ca-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
 	"ca-to-xl": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
+	"v3-to-v1": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"v3-to-xl": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 }
 
 class ResBlock(nn.Module):
@@ -89,8 +91,8 @@ class ComfyLatentInterposer:
 		return {
 			"required": {
 				"samples": ("LATENT", ),
-				"latent_src": (["v1", "xl", "ca"],),
-				"latent_dst": (["v1", "xl", "ca"],),
+				"latent_src": (["v1", "xl", "v3", "ca"],),
+				"latent_dst": (["v1", "xl"],),
 			}
 		}
 
@@ -144,7 +146,9 @@ class ComfyLatentInterposer:
 		lt = samples["samples"]
 		with torch.no_grad():
 			# force FP32, always run on CPU
-			lt = self.model(lt.cpu().float()).to(lt.device).to(lt.dtype)
+			lt = self.model(
+				lt.cpu().float()
+			).to(lt.device).to(lt.dtype)
 		samples["samples"] = lt
 		return (samples,)
 

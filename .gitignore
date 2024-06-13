@@ -12,6 +12,7 @@ test.py
 *.pth
 *.ckpt
 *.safetensors
+preprocess_*
 
 # default github .gitignore follows
 

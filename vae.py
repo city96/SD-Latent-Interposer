@@ -48,6 +48,20 @@ class SDXL_VAE(SDv1_VAE):
 		if dec_only:
 			del self.model.encoder
 
+class SDv3_VAE(SDv1_VAE):
+	scale = 1/8
+	channels = 16
+	def __init__(self, device=DEVICE, dtype=DTYPE, dec_only=False):
+		self.device = device
+		self.dtype = dtype
+		self.model = AutoencoderKL.from_pretrained(
+			"stabilityai/stable-diffusion-3-medium-diffusers",
+			subfolder="vae"
+		)
+		self.model.eval().to(self.dtype).to(self.device)
+		if dec_only:
+			del self.model.encoder
+
 class CascadeC_VAE(SDv1_VAE):
 	scale = 1/32
 	channels = 16
@@ -75,7 +89,7 @@ class CascadeA_VAE():
 	def __init__(self, device=DEVICE, dtype=DTYPE, dec_only=False):
 		self.device = device
 		self.dtype = dtype
-		
+
 		# not sure if this will change in the future?
 		from diffusers.pipelines.wuerstchen.modeling_paella_vq_model import PaellaVQModel
 		self.model = PaellaVQModel.from_pretrained(
@@ -102,13 +116,28 @@ class CascadeA_VAE():
 			out = torch.clamp(out, min=0.0, max=1.0)
 		return out.to(latent.dtype).to(latent.device)
 
+class No_VAE():
+	scale = 1
+	channels = 3
+	def __init__(self, *args, **kwargs):
+		pass
+
+	def encode(self, image):
+		return image
+
+	def decode(self, image):
+		return image
+
+vae_vers = {
+	"no": No_VAE,
+	"v1": SDv1_VAE,
+	"xl": SDXL_VAE,
+	"v3": SDv3_VAE,
+	"cc": CascadeC_VAE,
+	"ca": CascadeA_VAE,
+}
+
 def load_vae(ver, *args, **kwargs):
-	if ver == "v1":
-		VAE = SDv1_VAE
-	elif ver == "xl":
-		VAE = SDXL_VAE
-	elif ver == "cc":
-		VAE = CascadeC_VAE
-	elif ver == "ca":
-		VAE = CascadeA_VAE
-	return VAE(*args, **kwargs)
+	assert ver in vae_vers.keys(), f"Unknown VAE '{ver}'"
+	vae_class = vae_vers[ver]
+	return vae_class(*args, **kwargs)
