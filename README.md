@@ -36,17 +36,19 @@ Model names:
 
 | code | name                       |
 | ---- | -------------------------- |
-| `v1` | SDXL                       |
-| `xl` | Stable Diffusion v1.x      |
+| `v1` | Stable Diffusion v1.x      |
+| `xl` | SDXL                       |
+| `v3` | Stable Diffusion 3         |
 | `ca` | Stable Cascade (Stage A/B) |
 
 Available models:
 
-| From | to `v1` | to `xl` | to `ca` |
-|:----:|:-------:|:-------:|:-------:|
-| `v1` |    -    |  v4.0   |    No   |
-| `xl` |  v4.0   |    -    |    No   |
-| `ca` |  v4.0   |  v4.0   |    -    |
+| From | to `v1` | to `xl` | to `v3` | to `ca` |
+|:----:|:-------:|:-------:|:-------:|:-------:|
+| `v1` |    -    |  v4.0   |    No   |    No   |
+| `xl` |  v4.0   |    -    |    No   |    No   |
+| `v3` |  v4.0   |  v4.0   |    -    |    No   |
+| `ca` |  v4.0   |  v4.0   |    No   |    -    |
 
 ## Training
 
