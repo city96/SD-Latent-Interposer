@@ -6,15 +6,19 @@ from huggingface_hub import hf_hub_download
 
 # v1 = Stable Diffusion 1.x
 # xl = Stable Diffusion Extra Large (SDXL)
+# v3 = Stable Diffusion Version Three (SD3)
 # cc = Stable Cascade (Stage C) [not used]
 # ca = Stable Cascade (Stage A/B)
 config = {
 	"v1-to-xl": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"v1-to-v3": {"ch_in": 4, "ch_out":16, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"xl-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
-	"ca-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
-	"ca-to-xl": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
+	"xl-to-v3": {"ch_in": 4, "ch_out":16, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"v3-to-v1": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"v3-to-xl": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"ca-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
+	"ca-to-xl": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
+	"ca-to-v3": {"ch_in": 4, "ch_out":16, "ch_mid": 64, "scale": 0.5, "blocks": 12},
 }
 
 class ResBlock(nn.Module):
@@ -92,7 +96,7 @@ class ComfyLatentInterposer:
 			"required": {
 				"samples": ("LATENT", ),
 				"latent_src": (["v1", "xl", "v3", "ca"],),
-				"latent_dst": (["v1", "xl"],),
+				"latent_dst": (["v1", "xl", "v3"],),
 			}
 		}
 
