@@ -1,0 +1,40 @@
+steps: 35000
+batch:    48
+fconst:    0
+cosine: False
+resume: False
+device: "cuda"
+p_loss_weight: 1.0
+r_loss_weight: 0.1
+b_loss_weight: 1.0
+h_loss_weight: 0.0
+save_image:  100
+eval_model:   10
+
+model:
+  src: fx # Black Forest Labs Flux dot One
+  dst: v3 # Stable Diffusion Version three point oh
+  rev: "v4.0-rc2"
+  args:
+    scale: 1.0
+    ch_in:  16
+    ch_out: 16
+    ch_mid: 64
+    blocks: 12
+
+optim:
+  lr: 5.0e-4
+  beta1: 0.5
+  beta2: 0.95
+
+dataset:
+  src: "./latents/fx_256px_combined.bin"
+  dst: "./latents/v3_256px_combined.bin"
+  preload: False
+  evals:
+    main:
+      src: "./latents/test_eru/test_fx_768px.npy"
+      dst: "./latents/test_eru/test_v3_768px.npy"
+    aux:
+      src: "./latents/test_bga/test_fx_768px.npy"
+      dst: "./latents/test_bga/test_v3_768px.npy"

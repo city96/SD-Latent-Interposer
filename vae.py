@@ -62,6 +62,20 @@ class SDv3_VAE(SDv1_VAE):
 		if dec_only:
 			del self.model.encoder
 
+class FLUX_VAE(SDv1_VAE):
+	scale = 1/8
+	channels = 16
+	def __init__(self, device=DEVICE, dtype=DTYPE, dec_only=False):
+		self.device = device
+		self.dtype = torch.bfloat16 if dec_only else dtype # decoder NaNs randomly
+		self.model = AutoencoderKL.from_pretrained(
+			"black-forest-labs/FLUX.1-dev",
+			subfolder="vae"
+		)
+		self.model.eval().to(self.dtype).to(self.device)
+		if dec_only:
+			del self.model.encoder
+
 class CascadeC_VAE(SDv1_VAE):
 	scale = 1/32
 	channels = 16
@@ -135,6 +149,7 @@ vae_vers = {
 	"v3": SDv3_VAE,
 	"cc": CascadeC_VAE,
 	"ca": CascadeA_VAE,
+	"fx": FLUX_VAE,
 }
 
 def load_vae(ver, *args, **kwargs):

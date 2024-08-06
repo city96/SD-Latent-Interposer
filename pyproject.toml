@@ -1,0 +1,13 @@
+[project]
+name = "sd-latent-interposer"
+description = "Custom node to convert the lantents between SDv1/SDXL/SD3/cascade/flux directly without the VAE decoding/encoding step."
+version = "4.0.15"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/city96/SD-Latent-Interposer"
+
+[tool.comfy]
+PublisherId = "city96"
+DisplayName = "SD-Latent-Interposer"
+Icon = ""

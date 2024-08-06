@@ -238,7 +238,7 @@ if __name__ == "__main__":
 				# from torchvision.utils import save_image
 				# save_file(model.state_dict(), f"{base_name}_{pbar.n:07}.safetensors")
 				# for name, image in eval_images(model, vae, evals).items():
-					# name = f"models/{name.replace('/', '_')}_{pbar.n:07}.png"
+					# name = f"{base_name}_{name.replace('/', '_')}_{pbar.n:07}.png"
 					# save_image(image, name)
 
 	# final save/cleanup

@@ -7,6 +7,7 @@ from huggingface_hub import hf_hub_download
 # v1 = Stable Diffusion 1.x
 # xl = Stable Diffusion Extra Large (SDXL)
 # v3 = Stable Diffusion Version Three (SD3)
+# fx = Black Forest Labs Flux dot One
 # cc = Stable Cascade (Stage C) [not used]
 # ca = Stable Cascade (Stage A/B)
 config = {
@@ -16,6 +17,9 @@ config = {
 	"xl-to-v3": {"ch_in": 4, "ch_out":16, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"v3-to-v1": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"v3-to-xl": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"fx-to-v1": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"fx-to-xl": {"ch_in":16, "ch_out": 4, "ch_mid": 64, "scale": 1.0, "blocks": 12},
+	"fx-to-v3": {"ch_in":16, "ch_out":16, "ch_mid": 64, "scale": 1.0, "blocks": 12},
 	"ca-to-v1": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
 	"ca-to-xl": {"ch_in": 4, "ch_out": 4, "ch_mid": 64, "scale": 0.5, "blocks": 12},
 	"ca-to-v3": {"ch_in": 4, "ch_out":16, "ch_mid": 64, "scale": 0.5, "blocks": 12},
@@ -95,7 +99,7 @@ class ComfyLatentInterposer:
 		return {
 			"required": {
 				"samples": ("LATENT", ),
-				"latent_src": (["v1", "xl", "v3", "ca"],),
+				"latent_src": (["v1", "xl", "v3", "fx", "ca"],),
 				"latent_dst": (["v1", "xl", "v3"],),
 			}
 		}
